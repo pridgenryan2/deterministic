@@ -1,14 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { createPasskey, createPassword, hashMatrixHex } from '../src/index';
+import { azimuthPitchRollMatrix, baseMatrix } from './fixtures';
 
-const matrix = [
-  [2, 2.3, 4],
-  [7, 7.8, 7],
-  [4.442, 3, 9]
-] as const;
-
-const expectedPassword24 = 'o5{?x!n_i=X^STJ2Sy/-1UUI';
 const expectedPassword16 = 'o5{?x!n_i=X^STJ2';
+const expectedAzimuthPassword16 = '_k$3%-8jGA{8&Dfv';
 const expectedPasskeyPrivateHex =
   '2e81d3e6aee66dc4735c051dbee13ea63e215f309259d5eedf0d7951e31e29bb';
 const expectedMatrixHashHex =
@@ -16,32 +11,34 @@ const expectedMatrixHashHex =
 
 describe('deterministic derivation', () => {
   test('createPassword matches expected output', () => {
-    expect(createPassword(matrix, { length: 24 })).toBe(expectedPassword24);
-    expect(createPassword(matrix, { length: 16 })).toBe(expectedPassword16);
+    expect(createPassword(baseMatrix, { length: 16 })).toBe(expectedPassword16);
+    expect(createPassword(azimuthPitchRollMatrix, { length: 16 })).toBe(
+      expectedAzimuthPassword16
+    );
   });
 
   test('createPasskey exposes deterministic private key', () => {
-    const passkey = createPasskey(matrix);
+    const passkey = createPasskey(baseMatrix);
     expect(passkey.privateKeyHex).toBe(expectedPasskeyPrivateHex);
     expect(passkey.publicKey.length).toBe(32);
     expect(passkey.publicKeyHex).toHaveLength(64);
   });
 
   test('hashMatrixHex matches expected hash', () => {
-    expect(hashMatrixHex(matrix)).toBe(expectedMatrixHashHex);
+    expect(hashMatrixHex(baseMatrix)).toBe(expectedMatrixHashHex);
   });
 });
 
 describe('options and validation', () => {
   test('salt changes the output', () => {
-    const base = createPassword(matrix, { length: 24 });
-    const salted = createPassword(matrix, { length: 24, salt: 'salt' });
+    const base = createPassword(baseMatrix, { length: 16 });
+    const salted = createPassword(baseMatrix, { length: 16, salt: 'salt' });
     expect(salted).not.toBe(base);
   });
 
   test('custom alphabet is respected', () => {
-    const alphabet = 'abc';
-    const password = createPassword(matrix, { length: 64, alphabet });
+    const alphabet = 'abAB12!@';
+    const password = createPassword(baseMatrix, { length: 12, alphabet });
     for (const char of password) {
       expect(alphabet.includes(char)).toBe(true);
     }
@@ -49,7 +46,9 @@ describe('options and validation', () => {
 
   test('invalid inputs throw', () => {
     expect(() => createPassword([[1, Number.NaN]])).toThrow();
-    expect(() => createPassword(matrix, { length: 0 })).toThrow();
-    expect(() => createPassword(matrix, { alphabet: 'a' })).toThrow();
+    expect(() => createPassword(baseMatrix, { length: 0 })).toThrow();
+    expect(() => createPassword(baseMatrix, { length: 17 })).toThrow();
+    expect(() => createPassword(baseMatrix, { alphabet: 'a' })).toThrow();
+    expect(() => createPassword(baseMatrix, { alphabet: 'abc123' })).toThrow();
   });
 });
