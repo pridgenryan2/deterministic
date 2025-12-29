@@ -16,3 +16,13 @@ jobs:
       # run any `bun` or `bunx` command
       - run: bun install
       - run: bun test
+      - run: bun run build
+      - name: Resolve package version
+        run: echo "PACKAGE_VERSION=$(node -p \"require('./package.json').version\")" >> "$GITHUB_ENV"
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ env.PACKAGE_VERSION }}-${{ github.ref_type }}-${{ github.ref_name }}
+          path: |
+            dist
+            package.json
