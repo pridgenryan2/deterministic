@@ -1,3 +1,5 @@
+import { ed25519 } from '@noble/curves/ed25519.js';
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import { describe, expect, test } from 'bun:test';
 import { createPasskey, createPassword, hashMatrixHex } from '../src/index';
 import { azimuthPitchRollMatrix, baseMatrix } from './fixtures';
@@ -8,6 +10,8 @@ const expectedPasskeyPrivateHex =
   '2e81d3e6aee66dc4735c051dbee13ea63e215f309259d5eedf0d7951e31e29bb';
 const expectedMatrixHashHex =
   '005664ca9e58313a597e8e2ab6b1c510f27087d5f8b5b033576c7d8c9088fda5';
+const expectedSignatureHex =
+  '54726f95921804d43b129f1220f3406e2aa09968388a5f93e1b2a873dbacd7a65d5f99fdfd784eeff80b7f9a5eab781b5f597aab2e90a016a237a75f6626900e';
 
 describe('deterministic derivation', () => {
   test('createPassword matches expected output', () => {
@@ -26,6 +30,30 @@ describe('deterministic derivation', () => {
 
   test('hashMatrixHex matches expected hash', () => {
     expect(hashMatrixHex(baseMatrix)).toBe(expectedMatrixHashHex);
+  });
+
+  test('signatures are deterministic with and without extraEntropy', () => {
+    const message = utf8ToBytes('deterministic-signature');
+    const passkey = createPasskey(baseMatrix);
+
+    const signature = ed25519.sign(message, passkey.privateKey);
+    const signatureAgain = ed25519.sign(message, passkey.privateKey);
+
+    expect(bytesToHex(signatureAgain)).toBe(bytesToHex(signature));
+    expect(bytesToHex(signature)).toBe(expectedSignatureHex);
+
+    const extraEntropy = new Uint8Array(32).fill(7);
+    const signatureWithEntropy = ed25519.sign(message, passkey.privateKey, {
+      extraEntropy
+    });
+    const signatureWithEntropyAgain = ed25519.sign(message, passkey.privateKey, {
+      extraEntropy
+    });
+
+    expect(bytesToHex(signatureWithEntropyAgain)).toBe(
+      bytesToHex(signatureWithEntropy)
+    );
+    expect(bytesToHex(signatureWithEntropy)).toBe(expectedSignatureHex);
   });
 });
 

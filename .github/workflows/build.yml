@@ -1,9 +1,9 @@
 name: Build
 on:
-    pull_request:
-    push:
-        branches:
-            - main
+  pull_request:
+  push:
+    branches:
+      - main
 jobs:
   nodejs-build:
     name: Node.js Build
@@ -16,3 +16,25 @@ jobs:
       # run any `bun` or `bunx` command
       - run: bun install
       - run: bun test
+      - run: bun run build
+      - name: Resolve artifact metadata
+        run: |
+          PACKAGE_NAME=$(bun -e "Bun.file('package.json').json().then(data => console.log(data.name))")
+          PACKAGE_VERSION=$(bun -e "Bun.file('package.json').json().then(data => console.log(data.version))")
+          REF_NAME=${GITHUB_REF_NAME:-unknown}
+          REF_SAFE=$(echo "$REF_NAME" | tr '/@' '--')
+          REF_TYPE=${GITHUB_REF_TYPE:-${GITHUB_EVENT_NAME}}
+          NAME_SAFE=$(echo "$PACKAGE_NAME" | tr '/@' '--')
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+          echo "PACKAGE_VERSION=$PACKAGE_VERSION" >> "$GITHUB_ENV"
+          echo "ARTIFACT_REF=$REF_SAFE" >> "$GITHUB_ENV"
+          echo "ARTIFACT_REF_TYPE=$REF_TYPE" >> "$GITHUB_ENV"
+          echo "ARTIFACT_PACKAGE=$NAME_SAFE" >> "$GITHUB_ENV"
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_PACKAGE }}-${{ env.PACKAGE_VERSION }}-${{ env.ARTIFACT_REF_TYPE }}-${{ env.ARTIFACT_REF }}
+          path: |
+            dist
+            *.tgz
+            package.json

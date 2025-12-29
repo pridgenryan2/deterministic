@@ -16,7 +16,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "bun run build/index.ts",
     "test": "bun test"
   },
   "dependencies": {
