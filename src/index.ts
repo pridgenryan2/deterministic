@@ -104,39 +104,61 @@ export function createPassword(
   matrix: FloatMatrix,
   options: PasswordOptions = {}
 ): string {
-  const length = options.length ?? 32;
-  if (!Number.isInteger(length) || length <= 0) {
-    throw new RangeError('password length must be a positive integer');
+  const length = options.length ?? 16;
+  if (!Number.isInteger(length) || length < 8 || length > 16) {
+    throw new RangeError('password length must be between 8 and 16');
   }
   const alphabet = options.alphabet ?? DEFAULT_ALPHABET;
   if (alphabet.length < 2 || alphabet.length > 256) {
     throw new RangeError('alphabet length must be between 2 and 256');
   }
-
-  const seed = deriveSeed(matrix, PURPOSE_PASSWORD, options);
-  let password = '';
-  let counter = 0;
-  let pool = new Uint8Array(0);
-  let poolIndex = 0;
-  const max = Math.floor(256 / alphabet.length) * alphabet.length;
-
-  while (password.length < length) {
-    if (poolIndex >= pool.length) {
-      const counterBytes = new Uint8Array(4);
-      new DataView(counterBytes.buffer).setUint32(0, counter, false);
-      pool = sha256(concatBytes(seed, counterBytes));
-      poolIndex = 0;
-      counter += 1;
-    }
-    const byte = pool[poolIndex];
-    poolIndex += 1;
-    if (byte >= max) {
-      continue;
-    }
-    password += alphabet[byte % alphabet.length];
+  if (
+    !/[a-z]/.test(alphabet) ||
+    !/[A-Z]/.test(alphabet) ||
+    !/[0-9]/.test(alphabet) ||
+    !/[^a-zA-Z0-9]/.test(alphabet)
+  ) {
+    throw new RangeError(
+      'alphabet must include lowercase, uppercase, numeric, and symbol characters'
+    );
   }
 
-  return password;
+  const seed = deriveSeed(matrix, PURPOSE_PASSWORD, options);
+  const max = Math.floor(256 / alphabet.length) * alphabet.length;
+  const isValidPassword = (value: string) =>
+    /[a-z]/.test(value) &&
+    /[A-Z]/.test(value) &&
+    /[0-9]/.test(value) &&
+    /[^a-zA-Z0-9]/.test(value);
+
+  for (let attempt = 0; attempt < 1000; attempt += 1) {
+    let password = '';
+    let counter = attempt;
+    let pool = new Uint8Array(0);
+    let poolIndex = 0;
+
+    while (password.length < length) {
+      if (poolIndex >= pool.length) {
+        const counterBytes = new Uint8Array(4);
+        new DataView(counterBytes.buffer).setUint32(0, counter, false);
+        pool = sha256(concatBytes(seed, counterBytes));
+        poolIndex = 0;
+        counter += 1;
+      }
+      const byte = pool[poolIndex];
+      poolIndex += 1;
+      if (byte >= max) {
+        continue;
+      }
+      password += alphabet[byte % alphabet.length];
+    }
+
+    if (isValidPassword(password)) {
+      return password;
+    }
+  }
+
+  throw new Error('failed to generate a password meeting complexity rules');
 }
 
 export function createPasskey(
