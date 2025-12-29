@@ -19,10 +19,12 @@ jobs:
       - run: bun run build
       - name: Resolve package version
         run: echo "PACKAGE_VERSION=$(node -p \"require('./package.json').version\")" >> "$GITHUB_ENV"
+      - name: Resolve artifact ref
+        run: echo "ARTIFACT_REF=$(echo \"${GITHUB_REF_NAME}\" | tr '/' '-')" >> "$GITHUB_ENV"
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ env.PACKAGE_VERSION }}-${{ github.ref_type }}-${{ github.ref_name }}
+          name: dist-${{ env.PACKAGE_VERSION }}-${{ github.ref_type }}-${{ env.ARTIFACT_REF }}
           path: |
             dist
             package.json
