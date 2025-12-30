@@ -1,2 +1,7 @@
 node_modules
 dist
+npm-credentials.txt
+npm-token.txt
+*.tgz
+*.txt
+package
