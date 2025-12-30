@@ -14,6 +14,9 @@ const runCommand = async (command: string, args: string[]) => {
   }
 };
 
+await runCommand("rm", ["-rf", "dist"]);
+await runCommand("bunx", ["tsc", "-p", "tsconfig.build.json"]);
+
 const buildResult = await Bun.build({
   entrypoints: ["src/index.ts"],
   outdir: "dist",
@@ -35,6 +38,6 @@ const stagingDir = "package";
 
 await runCommand("rm", ["-rf", stagingDir]);
 await runCommand("mkdir", ["-p", `${stagingDir}/dist`]);
-await runCommand("cp", ["package.json", `${stagingDir}/`]);
+await runCommand("cp", ["package.json", "README.md", `${stagingDir}/`]);
 await runCommand("cp", ["-R", "dist/.", `${stagingDir}/dist/`]);
 await runCommand("tar", ["-czf", archiveName, "-C", stagingDir, "."]);
