@@ -10,3 +10,19 @@ export const azimuthPitchRollMatrix = [
   [2.09, 0.31, -1.2],
   [3.14, -0.85, 0.42]
 ] as const;
+
+export const positionMatrix = [
+  // positional angles (e.g., azimuth/elevation)
+  [0.22, 1.08],
+  // latitude/longitude
+  [37.7749, -122.4194],
+  // another angle set with a third component (e.g., roll)
+  [1.57, -0.42, 0.05],
+  // latitude/longitude
+  [-33.8688, 151.2093]
+] as const;
+
+export const positionLatLongPairs = [
+  { rowIndex: 1, latitude: 37.7749, longitude: -122.4194 },
+  { rowIndex: 3, latitude: -33.8688, longitude: 151.2093 }
+] as const;
