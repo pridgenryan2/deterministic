@@ -171,11 +171,11 @@ export function createPassword(
       if (poolIndex >= pool.length) {
         const counterBytes = new Uint8Array(4);
         new DataView(counterBytes.buffer).setUint32(0, counter, false);
-        pool = sha256(concatBytes(seed, counterBytes));
+        pool = new Uint8Array(sha256(concatBytes(seed, counterBytes)));
         poolIndex = 0;
         counter += 1;
       }
-      const byte = pool[poolIndex];
+      const byte = pool[poolIndex]!;
       poolIndex += 1;
       if (byte >= max) {
         continue;
