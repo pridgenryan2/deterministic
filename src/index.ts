@@ -51,15 +51,43 @@ export interface Passkey {
   publicKeyHex: string;
 }
 
+/**
+ * A message that can be signed or verified.
+ */
+export type MessageInput = string | Uint8Array;
+
+/**
+ * Result of signing a message.
+ */
+export interface MessageSignature {
+  signature: Uint8Array;
+  signatureHex: string;
+  publicKey: Uint8Array;
+  publicKeyHex: string;
+}
+
+/**
+ * A collection of signatures that together authorize a message.
+ */
+export interface SharedSignatures {
+  signatures: MessageSignature[];
+}
+
 const DOMAIN_TAG = utf8ToBytes("clave:deterministic:v1");
 const PURPOSE_PASSWORD = utf8ToBytes("password");
 const PURPOSE_PASSKEY = utf8ToBytes("passkey");
+const PURPOSE_SHARED_PASSKEY = utf8ToBytes("shared-passkey");
+const PURPOSE_SIGNATURE = utf8ToBytes("signature");
 const PURPOSE_HASH = utf8ToBytes("hash");
 const DEFAULT_ALPHABET =
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{};:,.?/";
 
 function toBytes(value: string | Uint8Array): Uint8Array {
   return typeof value === "string" ? utf8ToBytes(value) : value;
+}
+
+function toMessageBytes(message: MessageInput): Uint8Array {
+  return typeof message === "string" ? utf8ToBytes(message) : message;
 }
 
 function assertMatrix(matrix: FloatMatrix): void {
@@ -109,6 +137,43 @@ function deriveSeed(
   const salt = options?.salt ? toBytes(options.salt) : new Uint8Array(0);
   const info = options?.info ? utf8ToBytes(options.info) : new Uint8Array(0);
   return sha256(concatBytes(DOMAIN_TAG, purpose, salt, info, data));
+}
+
+function deriveSharedSeed(
+  matrix: FloatMatrix,
+  index: number,
+  total: number,
+  purpose: Uint8Array,
+  options?: DeriveOptions
+): Uint8Array {
+  if (!Number.isInteger(index) || index < 0) {
+    throw new RangeError("index must be a non-negative integer");
+  }
+  if (!Number.isInteger(total) || total <= 1) {
+    throw new RangeError("total must be an integer greater than 1");
+  }
+  if (index >= total) {
+    throw new RangeError("index must be less than total");
+  }
+  const indexBytes = new Uint8Array(4);
+  const totalBytes = new Uint8Array(4);
+  new DataView(indexBytes.buffer).setUint32(0, index, false);
+  new DataView(totalBytes.buffer).setUint32(0, total, false);
+  const data = encodeFloatMatrix(matrix);
+  const salt = options?.salt ? toBytes(options.salt) : new Uint8Array(0);
+  const info = options?.info ? utf8ToBytes(options.info) : new Uint8Array(0);
+  return sha256(
+    concatBytes(DOMAIN_TAG, purpose, indexBytes, totalBytes, salt, info, data)
+  );
+}
+
+function assertSharedMatrices(
+  matrices: readonly FloatMatrix[],
+  label: string
+): void {
+  if (!Array.isArray(matrices) || matrices.length < 2) {
+    throw new RangeError(`${label} requires at least two matrices`);
+  }
 }
 
 function expandBytes(seed: Uint8Array, length: number): Uint8Array {
@@ -207,6 +272,108 @@ export function createPasskey(
     privateKeyHex: bytesToHex(privateKey),
     publicKeyHex: bytesToHex(publicKey)
   };
+}
+
+/**
+ * Deterministically derive shared Ed25519 passkeys from multiple matrices.
+ */
+export function createSharedPasskey(
+  matrices: readonly FloatMatrix[],
+  options: PasskeyOptions = {}
+): Passkey[] {
+  assertSharedMatrices(matrices, "createSharedPasskey");
+  const total = matrices.length;
+  return matrices.map((matrix, index) => {
+    const privateKey = deriveSharedSeed(
+      matrix,
+      index,
+      total,
+      PURPOSE_SHARED_PASSKEY,
+      options
+    );
+    const publicKey = ed25519.getPublicKey(privateKey);
+    return {
+      curve: "ed25519",
+      privateKey,
+      publicKey,
+      privateKeyHex: bytesToHex(privateKey),
+      publicKeyHex: bytesToHex(publicKey)
+    };
+  });
+}
+
+/**
+ * Sign a message deterministically using a matrix-derived passkey.
+ */
+export function signMessage(
+  matrix: FloatMatrix,
+  message: MessageInput,
+  options: DeriveOptions = {}
+): MessageSignature {
+  const messageBytes = toMessageBytes(message);
+  const privateKey = deriveSeed(matrix, PURPOSE_SIGNATURE, options);
+  const publicKey = ed25519.getPublicKey(privateKey);
+  const signature = ed25519.sign(messageBytes, privateKey);
+  return {
+    signature,
+    signatureHex: bytesToHex(signature),
+    publicKey,
+    publicKeyHex: bytesToHex(publicKey)
+  };
+}
+
+/**
+ * Sign a message deterministically using a shared matrix-derived passkey.
+ */
+export function createSharedSignature(
+  matrices: readonly FloatMatrix[],
+  message: MessageInput,
+  options: DeriveOptions = {}
+): SharedSignatures {
+  assertSharedMatrices(matrices, "createSharedSignature");
+  const messageBytes = toMessageBytes(message);
+  return {
+    signatures: matrices.map((matrix, index) => {
+      const privateKey = deriveSharedSeed(
+        matrix,
+        index,
+        matrices.length,
+        PURPOSE_SHARED_PASSKEY,
+        options
+      );
+      const publicKey = ed25519.getPublicKey(privateKey);
+      const signature = ed25519.sign(messageBytes, privateKey);
+      return {
+        signature,
+        signatureHex: bytesToHex(signature),
+        publicKey,
+        publicKeyHex: bytesToHex(publicKey)
+      };
+    })
+  };
+}
+
+/**
+ * Verify a message signature with a provided public key.
+ */
+export function verifyMessageSignature(
+  message: MessageInput,
+  signature: Uint8Array,
+  publicKey: Uint8Array
+): boolean {
+  return ed25519.verify(signature, toMessageBytes(message), publicKey);
+}
+
+/**
+ * Verify that every signature in a shared set is valid for the message.
+ */
+export function verifySharedSignatures(
+  message: MessageInput,
+  signatures: SharedSignatures
+): boolean {
+  return signatures.signatures.every((entry) =>
+    ed25519.verify(entry.signature, toMessageBytes(message), entry.publicKey)
+  );
 }
 
 /**
