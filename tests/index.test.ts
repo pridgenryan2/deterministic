@@ -1,7 +1,16 @@
 import { ed25519 } from '@noble/curves/ed25519.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 import { describe, expect, test } from 'bun:test';
-import { createPasskey, createPassword, hashMatrixHex } from '../src/index';
+import {
+  createPasskey,
+  createPassword,
+  createSharedPasskey,
+  createSharedSignature,
+  hashMatrixHex,
+  signMessage,
+  verifyMessageSignature,
+  verifySharedSignatures
+} from '../src/index';
 import { azimuthPitchRollMatrix, baseMatrix } from './fixtures';
 
 const expectedPassword16 = 'o5{?x!n_i=X^STJ2';
@@ -12,6 +21,12 @@ const expectedMatrixHashHex =
   '005664ca9e58313a597e8e2ab6b1c510f27087d5f8b5b033576c7d8c9088fda5';
 const expectedSignatureHex =
   '54726f95921804d43b129f1220f3406e2aa09968388a5f93e1b2a873dbacd7a65d5f99fdfd784eeff80b7f9a5eab781b5f597aab2e90a016a237a75f6626900e';
+const expectedMessageSignatureHex =
+  'ce0a6545d1931b36c2992936ee3abc2aedb153df10c493bf17286850d063a1b2f9d908c0c482924df5b0d0e5d3a471e17ca809df084bb6e5f79a57c178ccd204';
+const expectedSharedSignatureHexes = [
+  'f0572085dc5c641d99e2a8697085996e47d06eb892b89b2cc44de5750fc9879b8678eaecbea5de775ac4485a4e5d040f95153568db93260b3018292a8dea5d0c',
+  '1a0805959d9b794630885b31d6d45cba238ebf041bdee533c67808ee287fc0bacd434a79d9bbfb382930002ce0f80fb8c8669ab2dc61f486752476a62c4a1b0f'
+];
 
 describe('deterministic derivation', () => {
   test('createPassword matches expected output', () => {
@@ -54,6 +69,45 @@ describe('deterministic derivation', () => {
       bytesToHex(signatureWithEntropy)
     );
     expect(bytesToHex(signatureWithEntropy)).toBe(expectedSignatureHex);
+  });
+
+  test('signMessage produces deterministic signatures', () => {
+    const message = 'mensaje deterministico';
+    const signature = signMessage(baseMatrix, message);
+
+    expect(signature.signatureHex).toBe(expectedMessageSignatureHex);
+    expect(verifyMessageSignature(message, signature.signature, signature.publicKey)).toBe(
+      true
+    );
+  });
+
+  test('shared signatures are deterministic across matrices', () => {
+    const message = 'mensaje compartido';
+    const sharedSignature = createSharedSignature(
+      [baseMatrix, azimuthPitchRollMatrix],
+      message
+    );
+    const sharedPasskeys = createSharedPasskey([
+      baseMatrix,
+      azimuthPitchRollMatrix
+    ]);
+
+    expect(sharedSignature.signatures).toHaveLength(2);
+    expect(sharedSignature.signatures[0]?.signatureHex).toBe(
+      expectedSharedSignatureHexes[0]
+    );
+    expect(sharedSignature.signatures[1]?.signatureHex).toBe(
+      expectedSharedSignatureHexes[1]
+    );
+    expect(
+      verifySharedSignatures(message, sharedSignature)
+    ).toBe(true);
+    expect(sharedSignature.signatures[0]?.publicKeyHex).toBe(
+      sharedPasskeys[0]?.publicKeyHex
+    );
+    expect(sharedSignature.signatures[1]?.publicKeyHex).toBe(
+      sharedPasskeys[1]?.publicKeyHex
+    );
   });
 });
 
