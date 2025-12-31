@@ -78,7 +78,6 @@ const PURPOSE_PASSWORD = utf8ToBytes("password");
 const PURPOSE_PASSKEY = utf8ToBytes("passkey");
 const PURPOSE_SHARED_PASSKEY = utf8ToBytes("shared-passkey");
 const PURPOSE_SIGNATURE = utf8ToBytes("signature");
-const PURPOSE_SHARED_SIGNATURE = utf8ToBytes("shared-signature");
 const PURPOSE_HASH = utf8ToBytes("hash");
 const DEFAULT_ALPHABET =
   "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{};:,.?/";
@@ -339,7 +338,7 @@ export function createSharedSignature(
         matrix,
         index,
         matrices.length,
-        PURPOSE_SHARED_SIGNATURE,
+        PURPOSE_SHARED_PASSKEY,
         options
       );
       const publicKey = ed25519.getPublicKey(privateKey);
